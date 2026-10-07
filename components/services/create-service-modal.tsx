@@ -796,109 +796,97 @@ function CreateServiceModalWizard({
   // Fetch repositories from GitHub
   const fetchGithubRepos = useCallback(async (token?: string, username?: string) => {
     setIsLoadingRepos(true);
+    setError(null);
     try {
-      let url = "https://api.github.com/user/repos?sort=updated&per_page=100";
-      const headers: Record<string, string> = {
-        Accept: "application/vnd.github.v3+json",
-      };
-
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      } else if (username) {
-        url = `https://api.github.com/users/${username}/repos?sort=updated&per_page=100`;
-      } else {
-        // Fallback demo repos if offline/not authorized yet
-        setGithubRepos([
-          {
-            id: 1,
-            name: "web-profile",
-            full_name: "syrramadhan/web-profile",
-            private: true,
-            html_url: "https://github.com/syrramadhan/web-profile",
-            clone_url: "https://github.com/syrramadhan/web-profile.git",
-            default_branch: "main",
-          },
-          {
-            id: 2,
-            name: "pendaftaran-coc-golang",
-            full_name: "syrramadhan/pendaftaran-coc-golang",
-            private: false,
-            html_url: "https://github.com/syrramadhan/pendaftaran-coc-golang",
-            clone_url: "https://github.com/syrramadhan/pendaftaran-coc-golang.git",
-            default_branch: "main",
-          },
-          {
-            id: 3,
-            name: "nextjs-project",
-            full_name: "syrramadhan/nextjs-project",
-            private: false,
-            html_url: "https://github.com/syrramadhan/nextjs-project",
-            clone_url: "https://github.com/syrramadhan/nextjs-project.git",
-            default_branch: "main",
-          },
-        ]);
-        setIsLoadingRepos(false);
+      // Tanpa kredensial: jangan tampilkan data palsu — arahkan ke connect.
+      if (!token && !username) {
+        setGithubRepos([]);
+        setError("GitHub is not connected. Connect your GitHub account to pick a repository.");
+        goToStep("GITHUB_CONNECT");
         return;
       }
 
-      const res = await fetch(url, { headers });
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setGithubRepos(
-            data.map((r: { id: number; name: string; full_name: string; private: boolean; html_url: string; clone_url: string; default_branch: string; language?: string }) => {
-              let cloneUrl = r.clone_url;
-              if (token && (r.private || cloneUrl.includes("github.com"))) {
-                cloneUrl = cloneUrl.replace("https://", `https://x-access-token:${token}@`);
-              }
-              return {
-                id: r.id,
-                name: r.name,
-                full_name: r.full_name,
-                private: Boolean(r.private),
-                html_url: r.html_url,
-                clone_url: cloneUrl,
-                default_branch: r.default_branch || "main",
-                language: r.language || undefined,
-              };
-            })
-          );
-        }
-      } else {
-        // Mock fallback if rate-limited — tampilkan alasannya agar tidak diam-diam kosong
-        toast.error("GitHub repositories gagal dimuat", {
-          message: `GitHub API menolak permintaan (HTTP ${res.status}). Daftar repo contoh ditampilkan saja.`,
-        });
-        setGithubRepos([
-          {
-            id: 1,
-            name: "web-profile",
-            full_name: "syrramadhan/web-profile",
-            private: true,
-            html_url: "https://github.com/syrramadhan/web-profile",
-            clone_url: "https://github.com/syrramadhan/web-profile.git",
-            default_branch: "main",
-          },
-          {
-            id: 2,
-            name: "golang-backend",
-            full_name: "syrramadhan/golang-backend",
-            private: false,
-            html_url: "https://github.com/syrramadhan/golang-backend",
-            clone_url: "https://github.com/syrramadhan/golang-backend.git",
-            default_branch: "main",
-          },
-        ]);
+      const url = token
+        ? "https://api.github.com/user/repos?sort=updated&per_page=100"
+        : `https://api.github.com/users/${username}/repos?sort=updated&per_page=100`;
+      const headers: Record<string, string> = {
+        Accept: "application/vnd.github.v3+json",
+      };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
       }
+
+      const res = await fetch(url, { headers });
+
+      if (res.status === 401) {
+        // Token kedaluwarsa/dicabut — bersihkan state dan minta reconnect.
+        try {
+          localStorage.removeItem(getGithubStorageKey());
+          localStorage.removeItem("kospaces_github_auth");
+        } catch {}
+        setGithubAuth(null);
+        setGithubRepos([]);
+        setError("Your GitHub token has expired or was revoked. Please reconnect your account.");
+        toast.error("GitHub Disconnected", { message: "Token expired — please reconnect your account." });
+        goToStep("GITHUB_CONNECT");
+        return;
+      }
+
+      if (res.status === 403) {
+        setGithubRepos([]);
+        setError("GitHub API rate limit reached (HTTP 403). Wait a few minutes, then click the refresh icon.");
+        toast.error("GitHub Rate Limited", { message: "Too many requests — try again in a few minutes." });
+        return;
+      }
+
+      if (!res.ok) {
+        setGithubRepos([]);
+        setError(`GitHub API error (HTTP ${res.status}). Click the refresh icon to retry.`);
+        toast.error("GitHub Error", { message: `GitHub API returned HTTP ${res.status}` });
+        return;
+      }
+
+      const data = await res.json();
+      if (!Array.isArray(data)) {
+        setGithubRepos([]);
+        setError("Unexpected response from GitHub API. Click the refresh icon to retry.");
+        return;
+      }
+
+      setGithubRepos(
+        data.map((r: { id: number; name: string; full_name: string; private: boolean; html_url: string; clone_url: string; default_branch: string; language?: string }) => {
+          let cloneUrl = r.clone_url;
+          if (token && (r.private || cloneUrl.includes("github.com"))) {
+            cloneUrl = cloneUrl.replace("https://", `https://x-access-token:${token}@`);
+          }
+          return {
+            id: r.id,
+            name: r.name,
+            full_name: r.full_name,
+            private: Boolean(r.private),
+            html_url: r.html_url,
+            clone_url: cloneUrl,
+            default_branch: r.default_branch || "main",
+            language: r.language || undefined,
+          };
+        })
+      );
     } catch (err: unknown) {
-      // Jangan telan error — user perlu tahu kenapa daftar repo kosong
-      const msg = err instanceof Error ? err.message : "Failed to load GitHub repositories";
+      // Jangan telan error — user perlu tahu kenapa daftar repo kosong.
+      // "Failed to fetch" umumnya: koneksi putus, ekstensi yang memblokir
+      // api.github.com, atau CSP yang belum mengizinkan domain tersebut.
+      const raw = err instanceof Error ? err.message : "Failed to load GitHub repositories";
+      const msg =
+        raw === "Failed to fetch"
+          ? "Could not reach api.github.com. Check your internet connection, browser extensions that block GitHub, or the app CSP configuration."
+          : raw;
+      setGithubRepos([]);
       setError(msg);
       toast.error("GitHub Error", { message: msg });
     } finally {
       setIsLoadingRepos(false);
     }
-  }, []);
+  }, [getGithubStorageKey, goToStep, toast]);
 
   // Fetch repositories from GitLab using user's OAuth access token
   const fetchGitlabRepos = useCallback(
@@ -1170,6 +1158,20 @@ function CreateServiceModalWizard({
     toast.info("GitLab Disconnected", {
       message: "You can now connect to another GitLab account.",
     });
+  };
+
+  // Disconnect GitHub
+  const handleDisconnectGithub = () => {
+    try {
+      localStorage.removeItem(getGithubStorageKey());
+      localStorage.removeItem("kospaces_github_auth");
+    } catch {}
+    setGithubAuth(null);
+    setGithubRepos([]);
+    toast.info("GitHub Disconnected", {
+      message: "You can now connect to another GitHub account.",
+    });
+    goToStep("GITHUB_CONNECT");
   };
 
   // Choose GitHub in provider list
@@ -1897,6 +1899,27 @@ function CreateServiceModalWizard({
                 />
               </div>
 
+              {/* Status koneksi — jelas berbeda antara full OAuth (token) dan public-only */}
+              {step === "GITHUB_REPOS" && gitProvider === "github" && githubAuth && (
+                <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl border border-zinc-800/80 bg-zinc-900/40">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${githubAuth.token ? "bg-emerald-400" : "bg-amber-400"}`} />
+                    <span className="text-[11px] text-zinc-300 truncate">
+                      {githubAuth.token ? "Connected" : "Public repositories only"}
+                      {githubAuth.username ? ` — @${githubAuth.username}` : ""}
+                      {!githubAuth.token && " — private repos require reconnecting with repo scope"}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleDisconnectGithub}
+                    className="text-[11px] text-zinc-500 hover:text-rose-300 transition-colors shrink-0 cursor-pointer"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              )}
+
               {isLoadingRepos ? (
                 <div className="p-8 flex flex-col items-center justify-center text-zinc-500 space-y-2">
                   <Loader2 className="w-5 h-5 animate-spin text-cyan-400" />
@@ -1905,9 +1928,33 @@ function CreateServiceModalWizard({
                   </p>
                 </div>
               ) : filteredRepos.length === 0 ? (
-                <div className="p-6 text-center text-zinc-500">
-                  <p className="text-xs">No repositories match your search.</p>
-                </div>
+                githubRepos.length === 0 ? (
+                  error ? (
+                    <div className="p-6 text-center space-y-3">
+                      <p className="text-xs text-rose-300">{error}</p>
+                      <button
+                        type="button"
+                        onClick={() => fetchGithubRepos(githubAuth?.token, githubAuth?.username)}
+                        className="px-3 py-1.5 rounded-lg border border-zinc-700 text-[11px] text-zinc-300 hover:text-white hover:border-cyan-500/60 transition-colors cursor-pointer"
+                      >
+                        Try again
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="p-6 text-center text-zinc-500 space-y-2">
+                      <p className="text-xs">
+                        No repositories found{githubAuth?.username ? ` for @${githubAuth.username}` : ""}.
+                      </p>
+                      <p className="text-[11px]">
+                        Create a repository on {gitProvider === "gitlab" ? "GitLab" : "GitHub"}, or verify your account has access to it.
+                      </p>
+                    </div>
+                  )
+                ) : (
+                  <div className="p-6 text-center text-zinc-500">
+                    <p className="text-xs">No repositories match your search.</p>
+                  </div>
+                )
               ) : (
                 <div className="space-y-1 max-h-[340px] overflow-y-auto pr-1">
                   {filteredRepos.map((repo) => (
