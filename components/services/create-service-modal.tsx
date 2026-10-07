@@ -865,7 +865,10 @@ function CreateServiceModalWizard({
           );
         }
       } else {
-        // Mock fallback if rate-limited
+        // Mock fallback if rate-limited — tampilkan alasannya agar tidak diam-diam kosong
+        toast.error("GitHub repositories gagal dimuat", {
+          message: `GitHub API menolak permintaan (HTTP ${res.status}). Daftar repo contoh ditampilkan saja.`,
+        });
         setGithubRepos([
           {
             id: 1,
@@ -887,8 +890,11 @@ function CreateServiceModalWizard({
           },
         ]);
       }
-    } catch {
-      // ignore
+    } catch (err: unknown) {
+      // Jangan telan error — user perlu tahu kenapa daftar repo kosong
+      const msg = err instanceof Error ? err.message : "Failed to load GitHub repositories";
+      setError(msg);
+      toast.error("GitHub Error", { message: msg });
     } finally {
       setIsLoadingRepos(false);
     }

@@ -20,7 +20,9 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
-  `connect-src 'self' ${apiOrigin}`,
+  // api.github.com & gitlab.com: wizard deploy mengambil daftar repo/branch
+  // langsung dari sisi browser memakai token OAuth user.
+  `connect-src 'self' ${apiOrigin} https://api.github.com https://gitlab.com`,
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
