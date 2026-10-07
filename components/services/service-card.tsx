@@ -10,6 +10,7 @@ import {
   CommitInfo,
 } from "@/lib/git";
 import { Card } from "@/components/ui/card";
+import { isCustomDomainName, platformServiceHost } from "@/lib/platform";
 import { ServiceIcon } from "@/components/services/service-icon";
 import {
   Server,
@@ -105,10 +106,8 @@ export function ServiceCard({
     label: service.status,
   };
 
-  const isCustomDomain = service.subdomain && service.subdomain.includes(".");
-  const serviceDomainDisplay = isCustomDomain
-    ? service.subdomain
-    : `${service.subdomain}-spaces.kotacloud.com`;
+  const isCustomDomain = isCustomDomainName(service.subdomain);
+  const serviceDomainDisplay = platformServiceHost(service.subdomain);
   const serviceUrl = service.subdomain
     ? `https://${serviceDomainDisplay}`
     : null;

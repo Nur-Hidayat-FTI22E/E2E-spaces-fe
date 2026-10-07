@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/dialog";
 import { LogViewer } from "@/components/logs/log-viewer";
 import { EnvEditor } from "@/components/settings/env-editor";
+import { platformServiceHost, platformServiceUrl } from "@/lib/platform";
 import {
   getServiceApi,
   updateServiceApi,
@@ -237,7 +238,7 @@ export default function ServiceDetailPage({
       toast.success("Domain Updated", {
         message: clean.includes(".")
           ? `Nginx configuration updated for ${clean} (zero-downtime)`
-          : `Nginx configuration updated for ${clean}-spaces.kotacloud.com (zero-downtime)`,
+          : `Nginx configuration updated for ${platformServiceHost(clean)} (zero-downtime)`,
       });
       fetchDomains();
     } catch (err: unknown) {
@@ -941,11 +942,7 @@ export default function ServiceDetailPage({
     );
   }
 
-  const serviceUrl = service.subdomain
-    ? (service.subdomain.includes(".")
-      ? `https://${service.subdomain}`
-      : `https://${service.subdomain}-spaces.kotacloud.com`)
-    : null;
+  const serviceUrl = platformServiceUrl(service.subdomain) || null;
 
   const isBuilding = service.status === "BUILDING" || service.status === "DEPLOYING";
 
@@ -1008,9 +1005,7 @@ export default function ServiceDetailPage({
                   className="inline-flex items-center gap-1.5 text-xs text-cyan-400 hover:text-cyan-300 font-mono mt-2"
                 >
                   <span>
-                    {service.subdomain && service.subdomain.includes(".")
-                      ? service.subdomain
-                      : `${service.subdomain}-spaces.kotacloud.com`}
+                    {platformServiceHost(service.subdomain)}
                   </span>
                   <ExternalLink className="w-3 h-3" />
                 </a>
@@ -1358,12 +1353,7 @@ export default function ServiceDetailPage({
               // Live-compute the connection string from current env vars in state
               const dbUser = envVars["POSTGRES_USER"] || envVars["MYSQL_USER"] || envVars["MONGO_INITDB_ROOT_USERNAME"] || "";
               const dbPass = envVars["POSTGRES_PASSWORD"] || envVars["MYSQL_ROOT_PASSWORD"] || envVars["MONGO_INITDB_ROOT_PASSWORD"] || "";
-              const dbHost = envVars["POSTGRES_HOST"] ||
-                (service.subdomain
-                  ? (service.subdomain.includes(".")
-                    ? service.subdomain
-                    : `${service.subdomain}-spaces.kotacloud.com`)
-                  : "");
+              const dbHost = envVars["POSTGRES_HOST"] || platformServiceHost(service.subdomain);
               const dbPort = envVars["POSTGRES_PORT"] || envVars["MYSQL_PORT"] || "5432";
               const dbName = envVars["POSTGRES_DB"] || envVars["MYSQL_DATABASE"] || envVars["MONGO_INITDB_DATABASE"] || "";
               const isMongo = !!envVars["MONGODB_URI"] || !!envVars["MONGO_INITDB_ROOT_USERNAME"];
@@ -1744,13 +1734,7 @@ export default function ServiceDetailPage({
                     projectName={project?.name || "app"}
                     serviceId={serviceId}
                     serviceName={service.name}
-                    defaultDomain={
-                      service.subdomain
-                        ? (service.subdomain.includes(".")
-                          ? service.subdomain
-                          : `${service.subdomain}-spaces.kotacloud.com`)
-                        : undefined
-                    }
+                    defaultDomain={platformServiceHost(service.subdomain) || undefined}
                     domains={domains}
                     onDomainsChange={fetchDomains}
                     onUpdateSubdomain={service.type === "DATABASE" ? undefined : handleUpdateSubdomain}

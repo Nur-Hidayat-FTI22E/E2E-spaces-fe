@@ -7,6 +7,7 @@ import { cleanRepoUrl } from "@/lib/git";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ProjectStatusBadge } from "@/components/projects/project-status";
+import { isCustomDomainName, platformServiceHost } from "@/lib/platform";
 import {
   FolderGit2,
   Boxes,
@@ -62,10 +63,8 @@ export function DeploymentCard({
     minute: "2-digit",
   });
 
-  const isCustomSubdomain = deployment.subdomain && deployment.subdomain.includes(".");
-  const deploymentDomainDisplay = isCustomSubdomain
-    ? deployment.subdomain
-    : `${deployment.subdomain}-spaces.kotacloud.com`;
+  const isCustomSubdomain = isCustomDomainName(deployment.subdomain);
+  const deploymentDomainDisplay = platformServiceHost(deployment.subdomain);
   const url = deployment.subdomain
     ? `https://${deploymentDomainDisplay}`
     : null;

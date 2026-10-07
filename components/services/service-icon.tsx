@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Service } from "@/types/service";
 import { LanguageLogo } from "@/components/ui/language-logo";
 import { Database } from "lucide-react";
+import { platformServiceHost } from "@/lib/platform";
 
 interface ServiceIconProps {
   service: Service;
@@ -45,9 +46,7 @@ export function ServiceIcon({ service, className = "w-5 h-5" }: ServiceIconProps
 
     // Live deployed subdomain URL
     if (service.subdomain) {
-      const domain = service.subdomain.includes(".")
-        ? service.subdomain
-        : `${service.subdomain}-spaces.kotacloud.com`;
+      const domain = platformServiceHost(service.subdomain);
       list.push(`https://${domain}/favicon.ico`);
       list.push(`https://${domain}/favicon.png`);
       list.push(`https://${domain}/favicon.svg`);

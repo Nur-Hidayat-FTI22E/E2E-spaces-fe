@@ -10,6 +10,7 @@ import { createProjectDomainApi, updateDomainApi, deleteDomainApi, verifyDomainD
 import { listProjectServicesApi } from "@/lib/api/services";
 import { Service } from "@/types/service";
 import { useToast } from "@/lib/toast/toast-context";
+import { PLATFORM_CNAME_TARGET, PLATFORM_URL_SUFFIX, isCustomDomainName } from "@/lib/platform";
 import {
   Globe,
   Search,
@@ -124,7 +125,7 @@ function DomainRedirectCombobox({
   );
 }
 
-const CNAME_TARGET_FALLBACK = "cname.spaces.kotacloud.com";
+const CNAME_TARGET_FALLBACK = PLATFORM_CNAME_TARGET;
 
 // Status verifikasi yang jujur berdasarkan data backend:
 // - verified  : lookup berhasil mengarah ke platform
@@ -326,7 +327,7 @@ export function DomainManager({
 
   const defaultDomain =
     propDefaultDomain ||
-    `${projectName.toLowerCase().replace(/[^a-z0-9-]/g, "-")}-spaces.kotacloud.com`;
+    `${projectName.toLowerCase().replace(/[^a-z0-9-]/g, "-")}${PLATFORM_URL_SUFFIX}`;
 
   const displayDomains = serviceId
     ? domains.filter((d) => !d.service_id || d.service_id === serviceId)
@@ -584,7 +585,7 @@ export function DomainManager({
       }
       toast.success("Default Domain Updated", {
         message: defaultDomainMode === "subdomain"
-          ? `Default domain is now ${clean}-spaces.kotacloud.com`
+          ? `Default domain is now ${clean}${PLATFORM_URL_SUFFIX}`
           : `Default domain is now ${clean}`,
       });
       setIsEditingDefaultSubdomain(false);
@@ -621,7 +622,7 @@ export function DomainManager({
   };
 
   const isDefaultCustom =
-    defaultDomain.includes(".") && !defaultDomain.endsWith("-spaces.kotacloud.com");
+    isCustomDomainName(defaultDomain) && !defaultDomain.endsWith(PLATFORM_URL_SUFFIX);
 
   const defaultSubdomainPrefix = isDefaultCustom
     ? (serviceName || projectName || "service")
@@ -962,7 +963,7 @@ export function DomainManager({
                           autoFocus
                         />
                         <span className="text-xs font-mono text-zinc-500 select-none">
-                          -spaces.kotacloud.com
+                          {PLATFORM_URL_SUFFIX}
                         </span>
                       </div>
                     </div>

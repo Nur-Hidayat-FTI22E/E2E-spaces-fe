@@ -9,6 +9,7 @@ import { createServiceApi } from "@/lib/api/services";
 import { CreateServiceRequest, Service } from "@/types/service";
 import { useToast } from "@/lib/toast/toast-context";
 import { buildOAuthState } from "@/lib/auth/oauth-state";
+import { PLATFORM_URL_SUFFIX } from "@/lib/platform";
 import {
   ArrowLeft,
   ArrowRight,
@@ -2031,7 +2032,7 @@ function CreateServiceModalWizard({
                   className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-cyan-500/80 outline-none font-mono"
                 />
                 <p className="text-[10px] text-zinc-500 font-mono">
-                  Default subdomain: <span className="text-cyan-400">{serviceName || "service"}.kcspaces.cloud</span>
+                  Default subdomain: <span className="text-cyan-400">{serviceName || "service"}{PLATFORM_URL_SUFFIX}</span>
                 </p>
               </div>
 

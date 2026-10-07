@@ -10,6 +10,7 @@ import { ProjectStatusBadge } from "@/components/projects/project-status";
 import { DeploymentTimeline } from "@/components/deployments/deployment-timeline";
 import { LifecycleControls } from "@/components/deployments/lifecycle-controls";
 import { LogViewer } from "@/components/logs/log-viewer";
+import { platformServiceHost, platformServiceUrl } from "@/lib/platform";
 import { getDeploymentApi, getDeploymentLogsApi } from "@/lib/api/deployments";
 import { Deployment, DeploymentLog, DeploymentStatus } from "@/types/deployment";
 import { cleanRepoUrl } from "@/lib/git";
@@ -164,9 +165,7 @@ export default function DeploymentDetailPage({
     );
   }
 
-  const liveUrl = deployment.subdomain
-    ? `https://${deployment.subdomain}-spaces.kotacloud.com`
-    : null;
+  const liveUrl = platformServiceUrl(deployment.subdomain) || null;
 
   return (
     <DashboardShell title="Deployments" subtitle={deployment.id.slice(0, 8)} showCreateButton={false}>
@@ -224,7 +223,7 @@ export default function DeploymentDetailPage({
                       rel="noopener noreferrer"
                       className="text-cyan-400 hover:underline flex items-center gap-1"
                     >
-                      <span>{deployment.subdomain}-spaces.kotacloud.com</span>
+                      <span>{platformServiceHost(deployment.subdomain)}</span>
                       <ExternalLink className="w-3 h-3" />
                     </a>
                   </>

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/dialog";
 import { ServiceCard } from "@/components/services/service-card";
 import { CreateServiceModal } from "@/components/services/create-service-modal";
+import { PLATFORM_CNAME_TARGET, platformServiceHost } from "@/lib/platform";
 import { EnvEditor } from "@/components/settings/env-editor";
 import {
   getProjectApi,
@@ -607,7 +608,7 @@ export default function ProjectCanvasPage({
                       {/* Default Subdomain */}
                       {svc.subdomain && (() => {
                         const isCustom = svc.subdomain.includes(".");
-                        const domainDisplay = isCustom ? svc.subdomain : `${svc.subdomain}-spaces.kotacloud.com`;
+                        const domainDisplay = platformServiceHost(svc.subdomain);
                         const domainUrl = `https://${domainDisplay}`;
                         return (
                           <div className="p-3.5 rounded-xl bg-zinc-900/50 border border-zinc-850/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -714,13 +715,13 @@ export default function ProjectCanvasPage({
               <div className="p-3 rounded-xl bg-zinc-900/90 border border-zinc-800 flex items-center justify-between gap-3 text-xs font-mono">
                 <div>
                   <span className="text-zinc-500 mr-2">CNAME:</span>
-                  <span className="text-cyan-300 font-semibold select-all">cname.spaces.kotacloud.com</span>
+                  <span className="text-cyan-300 font-semibold select-all">{PLATFORM_CNAME_TARGET}</span>
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    navigator.clipboard.writeText("cname.spaces.kotacloud.com");
+                    navigator.clipboard.writeText(PLATFORM_CNAME_TARGET);
                     setCopiedDomain("dns-ref");
                     setTimeout(() => setCopiedDomain(null), 2000);
                     toast.success("Copied", { message: "DNS target copied to clipboard." });
