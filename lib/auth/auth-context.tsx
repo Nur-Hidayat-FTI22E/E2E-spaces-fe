@@ -147,32 +147,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [router]
   );
 
-  const loginWithEmail = useCallback(
-    async (email: string) => {
-      setIsLoading(true);
-      try {
-        const res = await fetch("/api/auth/email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
-        });
-
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || "Failed to authenticate email");
-        }
-
-        setStoredToken(data.token);
-        setStoredUser(data.user);
-        setToken(data.token);
-        setUser(data.user);
-        router.push("/workspace/projects");
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [router]
-  );
+  // Catatan keamanan (K-1 laporan audit): login email tanpa verifikasi
+  // (route /api/auth/email dengan password deterministik) telah dihapus.
+  // Alur email yang sah hanya OTP: sendOtp() -> verifyOtp().
 
   const logout = useCallback(() => {
     clearAuthStorage();
@@ -205,7 +182,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     register,
     sendOtp,
     verifyOtp,
-    loginWithEmail,
     setSession,
     logout,
     refreshUser,

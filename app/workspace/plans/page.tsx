@@ -59,8 +59,9 @@ export default function PlansPage() {
     );
   }, [plans, activePlanId, subscription]);
 
-  // User avatar resolver
-  const avatarUrl = user?.avatar_url || (user?.email ? `https://unavatar.io/${encodeURIComponent(user.email)}` : null);
+  // S-5: jangan kirim email ke layanan avatar pihak ketiga (unavatar.io).
+  // Fallback inisial ditampilkan UI bila avatarUrl null.
+  const avatarUrl = user?.avatar_url || null;
   const userName = user?.name || user?.email?.split("@")[0] || "Developer";
 
   return (

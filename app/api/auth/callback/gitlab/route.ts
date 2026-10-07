@@ -1,15 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateAuthSuccessHtml } from "@/lib/auth/auth-success-html";
+import { escapeHtml, escapeJs } from "@/lib/auth/sanitize";
+import { OAUTH_STATE_COOKIE, verifyOAuthState } from "@/lib/auth/oauth-state";
+
+// Semua nilai dinamis di-escape sebelum masuk HTML/JS (temuan K-2 audit).
+
+const HTML_HEADERS = { "Content-Type": "text/html; charset=utf-8" };
 
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
   const code = searchParams.get("code");
   const error = searchParams.get("error");
   const errorDescription = searchParams.get("error_description");
+  const state = searchParams.get("state");
+  const cookieState = req.cookies.get(OAUTH_STATE_COOKIE)?.value;
 
   // Handle GitLab authorization errors
   if (error || !code) {
     const errorMsg = errorDescription || error || "GitLab authorization failed";
+    const safeMsg = escapeHtml(errorMsg);
+    const safeJsMsg = escapeJs(errorMsg);
     return new NextResponse(
       `<!DOCTYPE html>
       <html>
@@ -23,10 +33,10 @@ export async function GET(req: NextRequest) {
         <body>
           <div class="card">
             <h3>Authorization Failed</h3>
-            <p>${errorMsg}</p>
+            <p>${safeMsg}</p>
             <script>
               if (window.opener) {
-                window.opener.postMessage({ type: "GITLAB_AUTH_ERROR", error: "${errorMsg}" }, "*");
+                window.opener.postMessage({ type: "GITLAB_AUTH_ERROR", error: "${safeJsMsg}" }, window.location.origin);
                 setTimeout(() => window.close(), 2000);
               } else {
                 setTimeout(() => { window.location.href = "/login"; }, 3000);
@@ -35,11 +45,17 @@ export async function GET(req: NextRequest) {
           </div>
         </body>
       </html>`,
-      { headers: { "Content-Type": "text/html; charset=utf-8" } }
+      { headers: HTML_HEADERS }
     );
   }
 
   try {
+    // K-2: verifikasi state (double-submit cookie) sebelum menukar code.
+    const check = verifyOAuthState(cookieState, state);
+    if (!check.ok) {
+      throw new Error("Invalid OAuth state. Silakan ulangi proses login dari aplikasi.");
+    }
+
     const origin =
       process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
       req.nextUrl.origin;
@@ -62,7 +78,6 @@ export async function GET(req: NextRequest) {
 
     const data = await res.json();
     if (!res.ok || !data.success) {
-      // Backend returns: { success: false, error: { code: "...", message: "..." } }
       const errMsg =
         data?.error?.message ||
         data?.message ||
@@ -73,21 +88,21 @@ export async function GET(req: NextRequest) {
 
     const { token, user, gitlab_auth } = data.data;
 
-    const payload = JSON.stringify({
+    const payload = {
       type: "GITLAB_AUTH_SUCCESS",
       token,
       user,
       gitlab_auth,
       data: gitlab_auth,
       payload: gitlab_auth,
-    });
+    };
 
     const html = generateAuthSuccessHtml({
       provider: "gitlab",
       providerTitle: "GitLab",
       userEmail: user?.email || gitlab_auth?.email || "",
       userName: gitlab_auth?.name || gitlab_auth?.username || user?.username,
-      payloadJson: payload,
+      payload,
       targetUrl: "/workspace/projects",
     });
 
@@ -99,6 +114,8 @@ export async function GET(req: NextRequest) {
     });
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : "Internal authentication error";
+    const safeMsg = escapeHtml(errorMsg);
+    const safeJsMsg = escapeJs(errorMsg);
     return new NextResponse(
       `<!DOCTYPE html>
       <html>
@@ -112,17 +129,17 @@ export async function GET(req: NextRequest) {
         <body>
           <div class="card">
             <h3>Authorization Failed</h3>
-            <p>${errorMsg}</p>
+            <p>${safeMsg}</p>
             <script>
               if (window.opener) {
-                window.opener.postMessage({ type: "GITLAB_AUTH_ERROR", error: "${errorMsg}" }, "*");
+                window.opener.postMessage({ type: "GITLAB_AUTH_ERROR", error: "${safeJsMsg}" }, window.location.origin);
                 setTimeout(() => window.close(), 2500);
               }
             </script>
           </div>
         </body>
       </html>`,
-      { headers: { "Content-Type": "text/html; charset=utf-8" } }
+      { headers: HTML_HEADERS }
     );
   }
 }

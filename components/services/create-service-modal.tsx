@@ -8,6 +8,7 @@ import { GitlabIcon } from "@/components/ui/gitlab-icon";
 import { createServiceApi } from "@/lib/api/services";
 import { CreateServiceRequest, Service } from "@/types/service";
 import { useToast } from "@/lib/toast/toast-context";
+import { buildOAuthState } from "@/lib/auth/oauth-state";
 import {
   ArrowLeft,
   ArrowRight,
@@ -965,6 +966,8 @@ function CreateServiceModalWizard({
   // Listen for OAuth message from GitHub / GitLab popup
   useEffect(() => {
     const handleOAuthMessage = (event: MessageEvent) => {
+      // T-9 audit: hanya terima pesan dari origin aplikasi sendiri (anti token injection).
+      if (event.origin !== window.location.origin) return;
       if (
         event.data?.type === "GITHUB_AUTH_SUCCESS" ||
         event.data?.type === "KOSPACES_GITHUB_AUTH_SUCCESS"
@@ -1042,9 +1045,13 @@ function CreateServiceModalWizard({
 
       const redirectUri = `${window.location.origin}/api/auth/callback/github`;
       const scope = "repo,read:user,user:email";
+      // State double-submit cookie — divalidasi di callback (K-2 audit).
+      const oauthState = buildOAuthState("link");
       const authUrl = `https://github.com/login/oauth/authorize?client_id=${encodeURIComponent(
         clientId
-      )}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}`;
+      )}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(
+        scope
+      )}&state=${encodeURIComponent(oauthState)}`;
 
       const width = 600;
       const height = 720;
@@ -1084,9 +1091,11 @@ function CreateServiceModalWizard({
         const left = window.screen.width / 2 - width / 2;
         const top = window.screen.height / 2 - height / 2;
         const redirectUri = `${window.location.origin}/api/auth/callback/gitlab`;
+        // State double-submit cookie — divalidasi di callback (K-2 audit).
+        const gitlabState = buildOAuthState("link");
         const gitlabAuthUrl = `https://gitlab.com/oauth/authorize?client_id=${encodeURIComponent(
           gitlabClientId
-        )}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=read_user+read_repository+api`;
+        )}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=read_user+read_repository+api&state=${encodeURIComponent(gitlabState)}`;
 
         window.open(
           gitlabAuthUrl,

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import Image from "next/image";
+import { buildOAuthState } from "@/lib/auth/oauth-state";
 import { DashboardShell } from "@/components/layout/workspace-shell";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -105,9 +106,7 @@ export default function SettingsPage() {
     if (githubAuth?.user?.avatar_url) return githubAuth.user.avatar_url;
     if (githubAuth?.username) return `https://github.com/${githubAuth.username}.png`;
     if (user?.github_username) return `https://github.com/${user.github_username}.png`;
-    if (userEmail && userEmail.includes("@") && !userEmail.includes("developer@kotacloud.com")) {
-      return `https://unavatar.io/${encodeURIComponent(userEmail)}`;
-    }
+    // S-5: jangan kirim email ke layanan avatar pihak ketiga (unavatar.io).
     return null;
   }, [user?.avatar_url, user?.github_username, githubAuth, userEmail]);
 
@@ -266,9 +265,13 @@ export default function SettingsPage() {
 
     const redirectUri = `${window.location.origin}/api/auth/callback/github`;
     const scope = "repo,read:user,user:email";
+    // State double-submit cookie — divalidasi di callback (K-2 audit).
+    const oauthState = buildOAuthState("settings");
     const authUrl = `https://github.com/login/oauth/authorize?client_id=${encodeURIComponent(
       clientId
-    )}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}`;
+    )}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(
+      scope
+    )}&state=${encodeURIComponent(oauthState)}`;
 
     const width = 600;
     const height = 720;

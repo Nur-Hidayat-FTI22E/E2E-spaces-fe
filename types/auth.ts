@@ -33,7 +33,7 @@ export interface AuthContextType {
   register: (req: RegisterRequest) => Promise<User>;
   sendOtp: (email: string) => Promise<{ success: boolean; mode?: string; devCode?: string }>;
   verifyOtp: (email: string, code: string) => Promise<void>;
-  loginWithEmail: (email: string) => Promise<void>;
+  // loginWithEmail dihapus (K-1 audit) — login email hanya via OTP.
   setSession: (token: string, user: User) => void;
   logout: () => void;
   refreshUser: () => Promise<void>;

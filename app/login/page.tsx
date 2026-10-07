@@ -9,6 +9,7 @@ import { GithubIcon } from "@/components/ui/github-icon";
 import { HeroNetworkCanvas } from "@/components/ui/hero-network-canvas";
 import { useAuth } from "@/hooks/use-auth";
 import { getOAuthConfigApi, OAuthConfig } from "@/lib/api/auth";
+import { buildOAuthState } from "@/lib/auth/oauth-state";
 import {
   Mail,
   AlertCircle,
@@ -169,9 +170,13 @@ function RailwayAuthModal() {
 
     const redirectUri = `${window.location.origin}/api/auth/callback/github`;
     const scope = "repo,read:user,user:email";
+    // State double-submit cookie — divalidasi di callback (K-2 audit).
+    const oauthState = buildOAuthState("login");
     const authUrl = `https://github.com/login/oauth/authorize?client_id=${encodeURIComponent(
       clientId
-    )}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}`;
+    )}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(
+      scope
+    )}&state=${encodeURIComponent(oauthState)}`;
 
     window.location.href = authUrl;
     setTimeout(() => {
@@ -202,13 +207,15 @@ function RailwayAuthModal() {
     setIsSubmitting(true);
     const redirectUri = `${window.location.origin}/api/auth/callback/google`;
     const scope = "openid email profile";
+    // State double-submit cookie — divalidasi di callback (K-2 audit).
+    const oauthState = buildOAuthState("login");
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
       clientId
     )}&redirect_uri=${encodeURIComponent(
       redirectUri
     )}&response_type=code&scope=${encodeURIComponent(
       scope
-    )}&access_type=offline&prompt=select_account`;
+    )}&state=${encodeURIComponent(oauthState)}&access_type=offline&prompt=select_account`;
 
     window.location.href = authUrl;
     setTimeout(() => {

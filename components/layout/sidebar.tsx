@@ -145,17 +145,14 @@ export function Sidebar({
   // Resolve user avatar:
   // 1. Explicit user.avatar_url from backend (Google / GitHub / saved profile)
   // 2. Connected GitHub profile avatar (live via https://github.com/${username}.png)
-  // 3. Fallback to unavatar by email (which automatically grabs Google / Gravatar / GitHub)
+  // 3. S-5: fallback inisial lokal — email TIDAK dikirim ke unavatar.io
   const avatarUrl = useMemo(() => {
     if (user?.avatar_url) return user.avatar_url;
     if (githubAuth?.user?.avatar_url) return githubAuth.user.avatar_url;
     if (githubAuth?.username) return `https://github.com/${githubAuth.username}.png`;
     if (user?.github_username) return `https://github.com/${user.github_username}.png`;
-    if (userEmail && userEmail.includes("@") && !userEmail.includes("developer@kotacloud.com")) {
-      return `https://unavatar.io/${encodeURIComponent(userEmail)}`;
-    }
     return null;
-  }, [user?.avatar_url, user?.github_username, githubAuth, userEmail]);
+  }, [user?.avatar_url, user?.github_username, githubAuth]);
 
   // Section 1: Main workspace links (KotaCloud Spaces original icons)
   const primaryNavigation = [

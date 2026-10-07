@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateAuthSuccessHtml } from "@/lib/auth/auth-success-html";
+import { escapeHtml, escapeJs } from "@/lib/auth/sanitize";
+import { OAUTH_STATE_COOKIE, parseOAuthState, verifyOAuthState } from "@/lib/auth/oauth-state";
+
+// Halaman callback dirender sebagai HTML dari template string. SEMUA nilai
+// yang berasal dari query provider atau respons backend wajib di-escape
+// (temuan K-2 laporan audit: reflected XSS pada callback OAuth).
+
+const HTML_HEADERS = { "Content-Type": "text/html; charset=utf-8" };
 
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
@@ -9,10 +17,13 @@ export async function GET(req: NextRequest) {
   const error = searchParams.get("error");
   const errorDescription = searchParams.get("error_description");
   const state = searchParams.get("state");
+  const cookieState = req.cookies.get(OAUTH_STATE_COOKIE)?.value;
 
   // Handle explicit GitHub authorization errors (when no installation occurred)
   if (error && !installationId) {
     const errorMsg = errorDescription || error || "GitHub authorization failed";
+    const safeMsg = escapeHtml(errorMsg);
+    const safeJsMsg = escapeJs(errorMsg);
     return new NextResponse(
       `<!DOCTYPE html>
       <html>
@@ -26,10 +37,10 @@ export async function GET(req: NextRequest) {
         <body>
           <div class="card">
             <h3>Authorization Failed</h3>
-            <p>${errorMsg}</p>
+            <p>${safeMsg}</p>
             <script>
               if (window.opener) {
-                window.opener.postMessage({ type: "GITHUB_AUTH_ERROR", error: "${errorMsg}" }, "*");
+                window.opener.postMessage({ type: "GITHUB_AUTH_ERROR", error: "${safeJsMsg}" }, window.location.origin);
                 setTimeout(() => window.close(), 2000);
               } else {
                 setTimeout(() => { window.location.href = "/login"; }, 3000);
@@ -38,12 +49,22 @@ export async function GET(req: NextRequest) {
           </div>
         </body>
       </html>`,
-      { headers: { "Content-Type": "text/html; charset=utf-8" } }
+      { headers: HTML_HEADERS }
     );
   }
 
-  // Case 1: GitHub App installed without OAuth code (or already authorized)
+  // Case 1: GitHub App installed without OAuth code (or already authorized).
+  // Alur ini diprakarsai dari github.com (tanpa state kita), sehingga state
+  // TIDAK diverifikasi di sini — tetapi semua nilai tetap di-escape.
   if (installationId && !code) {
+    const safeInstallId = escapeHtml(installationId);
+    const safeJsInstallId = escapeJs(installationId);
+    const safeSetupAction = escapeJs(setupAction || "install");
+    // state lama memakai nilai polos "settings" — terima juga format purpose.random
+    const statePurpose = parseOAuthState(state)?.purpose || state || "";
+    const redirectTarget =
+      statePurpose === "settings" ? "/workspace/settings?installed=true" : "/workspace/projects";
+    const safeRedirect = escapeJs(redirectTarget);
     return new NextResponse(
       `<!DOCTYPE html>
       <html>
@@ -61,33 +82,32 @@ export async function GET(req: NextRequest) {
           <div class="card">
             <div class="badge">&#10003; APP INSTALLED</div>
             <h3>KotaCloud Spaces Terhubung!</h3>
-            <p>GitHub App berhasil diinstall pada akun Anda (ID: ${installationId}). Mengalihkan kembali ke dashboard...</p>
+            <p>GitHub App berhasil diinstall pada akun Anda (ID: ${safeInstallId}). Mengalihkan kembali ke dashboard...</p>
             <script>
               try {
                 localStorage.setItem("kospaces_github_installed", "true");
-                localStorage.setItem("kospaces_github_installation_id", "${installationId}");
+                localStorage.setItem("kospaces_github_installation_id", "${safeJsInstallId}");
               } catch(e) {}
 
               if (window.opener) {
                 window.opener.postMessage({
                   type: "KOSPACES_GITHUB_APP_INSTALLED",
-                  installation_id: "${installationId}",
-                  setup_action: "${setupAction || 'install'}"
-                }, "*");
+                  installation_id: "${safeJsInstallId}",
+                  setup_action: "${safeSetupAction}"
+                }, window.location.origin);
                 window.opener.postMessage({
                   type: "GITHUB_APP_INSTALLED",
-                  installation_id: "${installationId}"
-                }, "*");
+                  installation_id: "${safeJsInstallId}"
+                }, window.location.origin);
                 setTimeout(() => window.close(), 600);
               } else {
-                const redirectTarget = "${state === "settings" ? "/workspace/settings?installed=true" : "/workspace/projects"}";
-                window.location.replace(redirectTarget);
+                window.location.replace("${safeRedirect}");
               }
             </script>
           </div>
         </body>
       </html>`,
-      { headers: { "Content-Type": "text/html; charset=utf-8" } }
+      { headers: HTML_HEADERS }
     );
   }
 
@@ -117,11 +137,19 @@ export async function GET(req: NextRequest) {
           </div>
         </body>
       </html>`,
-      { headers: { "Content-Type": "text/html; charset=utf-8" } }
+      { headers: HTML_HEADERS }
     );
   }
 
   try {
+    // K-2: verifikasi state (double-submit cookie) sebelum menukar code —
+    // mencegah login CSRF & memastikan callback berasal dari flow aplikasi.
+    const check = verifyOAuthState(cookieState, state);
+    if (!check.ok) {
+      throw new Error("Invalid OAuth state. Silakan ulangi proses login dari aplikasi.");
+    }
+    const targetUrl = check.purpose === "settings" ? "/workspace/settings" : "/workspace/projects";
+
     const origin =
       process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
       req.nextUrl.origin;
@@ -147,6 +175,8 @@ export async function GET(req: NextRequest) {
     if (!res.ok || !data.success) {
       // If code exchange failed but installationId is present, user installed app successfully
       if (installationId) {
+        const safeInstallId = escapeHtml(installationId);
+        const safeJsInstallId = escapeJs(installationId);
         return new NextResponse(
           `<!DOCTYPE html>
           <html>
@@ -160,13 +190,13 @@ export async function GET(req: NextRequest) {
             <body>
               <div class="card">
                 <h3>App Installed Successfully!</h3>
-                <p>GitHub App installed (ID: ${installationId}). Redirecting to workspace...</p>
+                <p>GitHub App installed (ID: ${safeInstallId}). Redirecting to workspace...</p>
                 <script>
                   if (window.opener) {
                     window.opener.postMessage({
                       type: "KOSPACES_GITHUB_APP_INSTALLED",
-                      installation_id: "${installationId}"
-                    }, "*");
+                      installation_id: "${safeJsInstallId}"
+                    }, window.location.origin);
                     setTimeout(() => window.close(), 600);
                   } else {
                     window.location.replace("/workspace/settings?installed=1");
@@ -175,7 +205,7 @@ export async function GET(req: NextRequest) {
               </div>
             </body>
           </html>`,
-          { headers: { "Content-Type": "text/html; charset=utf-8" } }
+          { headers: HTML_HEADERS }
         );
       }
       const errMsg =
@@ -192,7 +222,7 @@ export async function GET(req: NextRequest) {
       installation_id: installationId || github_auth?.installation_id || undefined,
     };
 
-    const payload = JSON.stringify({
+    const payload = {
       type: "GITHUB_AUTH_SUCCESS",
       token,
       user,
@@ -200,15 +230,14 @@ export async function GET(req: NextRequest) {
       data: githubAuthData,
       payload: githubAuthData,
       installation_id: installationId || undefined,
-    });
+    };
 
-    const targetUrl = state === "settings" ? "/workspace/settings" : "/workspace/projects";
     const html = generateAuthSuccessHtml({
       provider: "github",
       providerTitle: "GitHub",
       userEmail: user?.email || "",
       userName: github_auth?.name || github_auth?.username || user?.username,
-      payloadJson: payload,
+      payload,
       targetUrl,
       installationId: installationId || undefined,
     });
@@ -221,6 +250,8 @@ export async function GET(req: NextRequest) {
     });
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : "Internal authentication error";
+    const safeMsg = escapeHtml(errorMsg);
+    const safeJsMsg = escapeJs(errorMsg);
     return new NextResponse(
       `<!DOCTYPE html>
       <html>
@@ -234,17 +265,17 @@ export async function GET(req: NextRequest) {
         <body>
           <div class="card">
             <h3>Authorization Failed</h3>
-            <p>${errorMsg}</p>
+            <p>${safeMsg}</p>
             <script>
               if (window.opener) {
-                window.opener.postMessage({ type: "GITHUB_AUTH_ERROR", error: "${errorMsg}" }, "*");
+                window.opener.postMessage({ type: "GITHUB_AUTH_ERROR", error: "${safeJsMsg}" }, window.location.origin);
                 setTimeout(() => window.close(), 2500);
               }
             </script>
           </div>
         </body>
       </html>`,
-      { headers: { "Content-Type": "text/html; charset=utf-8" } }
+      { headers: HTML_HEADERS }
     );
   }
 }

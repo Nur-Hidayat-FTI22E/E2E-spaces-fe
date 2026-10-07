@@ -15,10 +15,14 @@ export interface AuthSuccessOptions {
   providerTitle: string;
   userEmail: string;
   userName?: string;
-  payloadJson: string;
+  /** Objek payload — diserialisasi aman via safeJsonForScript (bukan string mentah). */
+  payload: unknown;
+  /** Hanya path internal relatif yang diterima (lihat safeInternalPath). */
   targetUrl: string;
   installationId?: string;
 }
+
+import { escapeHtml, escapeJs, safeInternalPath, safeJsonForScript } from "@/lib/auth/sanitize";
 
 export function generateAuthSuccessHtml(options: AuthSuccessOptions): string {
   const {
@@ -26,19 +30,26 @@ export function generateAuthSuccessHtml(options: AuthSuccessOptions): string {
     providerTitle,
     userEmail,
     userName,
-    payloadJson,
+    payload,
     targetUrl,
     installationId = "",
   } = options;
 
-  const displayIdentity = userEmail || userName || `${providerTitle} User`;
+  // Semua nilai dinamis di-escape sebelum masuk HTML/JS (temuan K-2).
+  const safeProviderTitle = escapeHtml(providerTitle);
+  const displayIdentity = escapeHtml(
+    userEmail || userName || `${providerTitle} User`
+  );
+  const safeTargetUrl = escapeJs(safeInternalPath(targetUrl));
+  const safeInstallationId = escapeJs(installationId);
+  const safePayloadJson = safeJsonForScript(payload);
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${providerTitle} Authorization Successful — KotaCloud Spaces</title>
+  <title>${safeProviderTitle} Authorization Successful — KotaCloud Spaces</title>
   <style>
     * {
       box-sizing: border-box;
@@ -470,9 +481,9 @@ export function generateAuthSuccessHtml(options: AuthSuccessOptions): string {
   <script>
     (function() {
       // 1. Immediately store credentials to avoid session loss
-      const payload = ${payloadJson};
-      const targetUrl = "${targetUrl}";
-      const installationId = "${installationId}";
+      const payload = ${safePayloadJson};
+      const targetUrl = "${safeTargetUrl}";
+      const installationId = "${safeInstallationId}";
       const isPopup = Boolean(window.opener);
 
       try {

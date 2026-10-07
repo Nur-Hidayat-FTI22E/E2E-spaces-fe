@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { buildOAuthState } from "@/lib/auth/oauth-state";
 import Image from "next/image";
 import { GithubIcon } from "@/components/ui/github-icon";
 import { Button } from "@/components/ui/button";
@@ -94,6 +95,8 @@ export function GithubRepoSelector({
   // Listen for OAuth message from popup
   useEffect(() => {
     const handleOAuthMessage = (event: MessageEvent) => {
+      // T-9 audit: hanya terima pesan dari origin aplikasi sendiri (anti token injection).
+      if (event.origin !== window.location.origin) return;
       if (event.data?.type === "GITHUB_AUTH_SUCCESS" || event.data?.type === "KOSPACES_GITHUB_AUTH_SUCCESS") {
         const authData = event.data.data || event.data.github_auth || event.data.payload;
         if (authData) {
@@ -145,9 +148,13 @@ export function GithubRepoSelector({
 
     const redirectUri = `${window.location.origin}/api/auth/callback/github`;
     const scope = "repo,read:user,user:email";
+    // State double-submit cookie — divalidasi di callback (K-2 audit).
+    const oauthState = buildOAuthState("link");
     const authUrl = `https://github.com/login/oauth/authorize?client_id=${encodeURIComponent(
       clientId
-    )}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}`;
+    )}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(
+      scope
+    )}&state=${encodeURIComponent(oauthState)}`;
 
     const width = 600;
     const height = 720;
