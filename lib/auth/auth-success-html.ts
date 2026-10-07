@@ -487,13 +487,15 @@ export function generateAuthSuccessHtml(options: AuthSuccessOptions): string {
       const isPopup = Boolean(window.opener);
 
       try {
+        // Kunci penyimpanan disatukan (audit Kualitas): hanya satu kunci
+        // untuk token dan satu untuk user.
         if (payload.token) {
           localStorage.setItem("kospaces_jwt_token", payload.token);
-          localStorage.setItem("kospaces_token", payload.token);
+          localStorage.removeItem("kospaces_token");
         }
         if (payload.user) {
           localStorage.setItem("kospaces_current_user", JSON.stringify(payload.user));
-          localStorage.setItem("kospaces_user", JSON.stringify(payload.user));
+          localStorage.removeItem("kospaces_user");
         }
         if (payload.github_auth) {
           localStorage.setItem("kospaces_github_auth", JSON.stringify(payload.github_auth));
