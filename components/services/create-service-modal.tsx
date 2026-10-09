@@ -1289,8 +1289,8 @@ function CreateServiceModalWizard({
         source_type: "DOCKER",
         docker_image: selectedDb.image,
         container_port: selectedDb.port,
-        memory_mb: Number(memoryMB) || 512,
-        cpus: Number(cpu) || 0.5,
+        memory_mb: Number(memoryMB) || undefined,
+        cpus: Number(cpu) || undefined,
       };
     } else {
       let repoUrl = (selectedRepo?.clone_url || manualRepoUrl).trim();
@@ -1343,8 +1343,8 @@ function CreateServiceModalWizard({
         root_dir: rootDir.trim() && rootDir.trim() !== "./" ? rootDir.trim() : undefined,
         env_vars: Object.keys(parsedEnv).length > 0 ? parsedEnv : undefined,
         container_port: finalContainerPort,
-        memory_mb: Number(memoryMB) || 512,
-        cpus: Number(cpu) || 0.5,
+        memory_mb: Number(memoryMB) || undefined,
+        cpus: Number(cpu) || undefined,
       };
     }
 
