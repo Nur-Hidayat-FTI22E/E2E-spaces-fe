@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { GithubIcon } from "@/components/ui/github-icon";
 import { GitlabIcon } from "@/components/ui/gitlab-icon";
 import { createServiceApi } from "@/lib/api/services";
+import { createProjectDomainApi } from "@/lib/api/projects";
 import { CreateServiceRequest, Service } from "@/types/service";
 import { useToast } from "@/lib/toast/toast-context";
 import { buildOAuthState } from "@/lib/auth/oauth-state";
@@ -313,6 +314,11 @@ function CreateServiceModalWizard({
   const [detectedPort, setDetectedPort] = useState<number>(8080);
   const [isDetectingRuntime, setIsDetectingRuntime] = useState<boolean>(false);
 
+  // Container port & custom domain pre-config sebelum deploy pertama.
+  // Port default ikut hasil deteksi runtime; user bisa override.
+  const [containerPort, setContainerPort] = useState<string>("8080");
+  const [customDomain, setCustomDomain] = useState("");
+
   // Vercel-style deployment config (Root Directory & Environment Variables)
   const [rootDir, setRootDir] = useState("./");
   const [isEditingRootDir, setIsEditingRootDir] = useState(false);
@@ -450,6 +456,7 @@ function CreateServiceModalWizard({
     setDetectedLanguage(preset.language);
     setDetectedFramework(preset.framework);
     setDetectedPort(preset.port);
+    setContainerPort(String(preset.port));
     setServiceType(preset.type);
     setShowPresetDropdown(false);
   };
@@ -779,6 +786,7 @@ function CreateServiceModalWizard({
         setDetectedLanguage(language);
         setDetectedFramework(framework);
         setDetectedPort(port);
+        setContainerPort(String(port));
         setServiceType(sType);
       } catch {
         const isHtml = repo.name.toLowerCase().includes("html") || (repo.language && repo.language.toLowerCase() === "html");
@@ -786,6 +794,7 @@ function CreateServiceModalWizard({
         setDetectedLanguage(isHtml ? "HTML" : isFrontend ? "Next.js" : "Other");
         setDetectedFramework(isHtml ? "Static HTML" : isFrontend ? "Frontend Web" : "Other");
         setDetectedPort(isHtml ? 80 : isFrontend ? 3000 : 8080);
+        setContainerPort(String(isHtml ? 80 : isFrontend ? 3000 : 8080));
         setServiceType(isFrontend ? "FRONTEND" : "WEB");
       } finally {
         setIsDetectingRuntime(false);
@@ -1322,9 +1331,8 @@ function CreateServiceModalWizard({
       });
 
       const finalContainerPort =
-        detectedLanguage === "HTML"
-          ? 80
-          : Number(detectedPort) || (serviceType === "FRONTEND" ? 3000 : 8080);
+        Number(containerPort) ||
+        (detectedLanguage === "HTML" ? 80 : Number(detectedPort) || (serviceType === "FRONTEND" ? 3000 : 8080));
 
       payload = {
         name: trimmedName,
@@ -1343,6 +1351,27 @@ function CreateServiceModalWizard({
     setIsSubmitting(true);
     try {
       const newService = await createServiceApi(projectId, payload);
+
+      // Custom domain opsional saat pembuatan service: langsung ter-attach
+      // dan menunggu verifikasi DNS. Gagal di sini tidak membatalkan service
+      // yang sudah dibuat.
+      const trimmedDomain = customDomain.trim().toLowerCase();
+      if (trimmedDomain && newService?.id) {
+        try {
+          await createProjectDomainApi(projectId, {
+            domain: trimmedDomain,
+            type: "CUSTOM",
+            service_id: newService.id,
+          });
+          toast.success("Custom domain ditambahkan", {
+            message: `Arahkan DNS ${trimmedDomain} ke platform, lalu pantau status verifikasinya di halaman Domains.`,
+          });
+        } catch {
+          toast.error("Custom domain gagal ditambahkan", {
+            message: "Service tetap dibuat. Tambahkan domain kapan saja lewat halaman Domains.",
+          });
+        }
+      }
       toast.success("Service Created", {
         message: `Service "${newService.name}" deployed to project.`,
       });
@@ -2123,6 +2152,51 @@ function CreateServiceModalWizard({
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Container Port */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-zinc-300">Container Port</label>
+                  <span className="text-[10px] text-zinc-500 font-mono">Port aplikasi di dalam container</span>
+                </div>
+                <input
+                  type="number"
+                  min={1}
+                  max={65535}
+                  value={containerPort}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/[^0-9]/g, "");
+                    const n = parseInt(v, 10);
+                    setContainerPort(v === "" ? "" : String(Math.min(n > 65535 ? 65535 : n, 65535)));
+                  }}
+                  placeholder="8080"
+                  className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-zinc-600 outline-none font-mono focus:border-cyan-500/80"
+                />
+                <p className="text-[10px] text-zinc-500 font-mono">
+                  Bisa diubah kapan saja dari halaman service tanpa deploy ulang.
+                </p>
+              </div>
+
+              {/* Custom Domain (optional) */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-zinc-300">
+                    Custom Domain <span className="text-zinc-500 font-normal">(optional)</span>
+                  </label>
+                  <span className="text-[10px] text-zinc-500 font-mono">mis. api.contoh.com</span>
+                </div>
+                <input
+                  type="text"
+                  value={customDomain}
+                  onChange={(e) => setCustomDomain(e.target.value.toLowerCase().replace(/[^a-z0-9.-]/g, ""))}
+                  placeholder="app.contoh.com"
+                  className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-zinc-600 outline-none font-mono focus:border-cyan-500/80"
+                />
+                <p className="text-[10px] text-zinc-500 font-mono">
+                  Kosongkan untuk memakai subdomain platform ({(serviceName || "service") + PLATFORM_URL_SUFFIX}).
+                  Domain custom diverifikasi otomatis begitu DNS diarahkan.
+                </p>
               </div>
 
               {/* Root Directory (Matching Image 2 & Modal in Image 4) */}
