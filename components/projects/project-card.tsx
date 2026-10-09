@@ -4,7 +4,14 @@ import React from "react";
 import Link from "next/link";
 import { Project } from "@/types/project";
 import { Card } from "@/components/ui/card";
-import { FolderGit2, ArrowUpRight, ExternalLink, Trash2 } from "lucide-react";
+import { FolderGit2, ArrowUpRight, ExternalLink, Trash2, Boxes } from "lucide-react";
+
+const statusColor: Record<string, string> = {
+  RUNNING: "text-emerald-400 border-emerald-500/30 bg-emerald-950/30",
+  FAILED: "text-rose-400 border-rose-500/30 bg-rose-950/30",
+  STOPPED: "text-zinc-400 border-zinc-600/40 bg-zinc-900/60",
+  BUILDING: "text-amber-400 border-amber-500/30 bg-amber-950/30",
+};
 
 interface ProjectCardProps {
   project: Project;
@@ -23,6 +30,7 @@ export function ProjectCard({
     day: "numeric",
     year: "numeric",
   });
+  const services = project.services ?? [];
 
   return (
     <Card className="p-5 flex flex-col justify-between border-white/[0.07] bg-[#0c0d10] hover:border-white/[0.14] transition-all hover:shadow-[0_0_25px_-5px_rgba(0,210,255,0.05)] group">
@@ -60,10 +68,43 @@ export function ProjectCard({
             </a>
           </div>
         ) : (
-          <div className="mt-4 flex items-center gap-2 text-[11px] text-zinc-400 font-mono">
-            <span className="px-2 py-0.5 rounded bg-zinc-900/60 border border-white/[0.06] text-zinc-400">
-              {project.services?.length || 0} {project.services?.length === 1 ? "Service" : "Services"}
-            </span>
+          <div className="mt-4 flex flex-col gap-1.5">
+            {services.length > 0 ? (
+              <>
+                <div className="flex items-center gap-1.5 text-[11px] text-zinc-500 font-mono">
+                  <Boxes className="w-3.5 h-3.5" />
+                  <span>
+                    {services.length}{" "}
+                    {services.length === 1 ? "Service" : "Services"}
+                  </span>
+                </div>
+                {services.slice(0, 3).map((svc) => (
+                  <div
+                    key={svc.id}
+                    className="flex items-center justify-between gap-2 px-2 py-1 rounded bg-zinc-950/60 border border-white/[0.06] text-[11px] font-mono"
+                  >
+                    <span className="text-zinc-300 truncate">{svc.name}</span>
+                    <span
+                      className={`px-1.5 py-0.5 rounded border text-[10px] uppercase tracking-wide flex-shrink-0 ${
+                        statusColor[svc.status] ||
+                        "text-zinc-400 border-zinc-600/40 bg-zinc-900/60"
+                      }`}
+                    >
+                      {svc.status || "UNKNOWN"}
+                    </span>
+                  </div>
+                ))}
+                {services.length > 3 && (
+                  <span className="text-[10px] text-zinc-600 font-mono pl-2">
+                    +{services.length - 3} more
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="px-2 py-0.5 rounded bg-zinc-900/60 border border-white/[0.06] text-[11px] text-zinc-500 font-mono w-fit">
+                No services yet
+              </span>
+            )}
           </div>
         )}
       </div>

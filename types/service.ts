@@ -85,3 +85,15 @@ export interface ServiceListResponse {
   services: Service[];
   total: number;
 }
+
+// ProjectServiceSummary adalah ringkasan service yang dikirim backend di
+// dalam response GET /projects (untuk kartu project di dashboard).
+export interface ProjectServiceSummary {
+  id: string;
+  name: string;
+  slug: string;
+  type: string;
+  status: string;
+  subdomain: string;
+  host_port: number;
+}

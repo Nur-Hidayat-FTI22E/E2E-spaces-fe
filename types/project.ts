@@ -1,4 +1,4 @@
-import { Service } from "./service";
+import { Service, ProjectServiceSummary } from "./service";
 
 export interface Project {
   id: string;
@@ -7,7 +7,9 @@ export interface Project {
   slug: string;
   created_at: string;
   updated_at: string;
-  services?: Service[];
+  // Ringkasan service dari GET /projects (backend mengirim summary ringkas,
+  // bukan Service penuh). Detail lengkap ada di endpoint per-project.
+  services?: ProjectServiceSummary[] | Service[];
 }
 
 export interface CreateProjectRequest {
