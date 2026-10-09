@@ -39,6 +39,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Standalone output: produksi hanya butuh .next/standalone + static + public
+  // (server kecil, RAM terbatas).
+  output: "standalone",
   images: {
     remotePatterns: [
       {
