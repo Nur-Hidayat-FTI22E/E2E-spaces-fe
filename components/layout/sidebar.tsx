@@ -15,6 +15,8 @@ import {
   Server,
   Sparkles,
   CreditCard,
+  Network,
+  ShieldCheck,
 } from "lucide-react";
 
 import { useAuth } from "@/hooks/use-auth";
@@ -187,6 +189,22 @@ export function Sidebar({
     },
   ];
 
+  // Section 2b: Admin links — hanya tampil untuk email dalam ADMIN_EMAIL.
+  const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  const isAdmin = !!user?.email && adminEmails.includes(user.email.toLowerCase());
+  const adminNavigation = isAdmin
+    ? [
+        {
+          name: "Port Audit",
+          href: "/workspace/ports",
+          icon: Network,
+        },
+      ]
+    : [];
+
   // Section 3: External documentation link
   const externalNavigation = [
     {
@@ -284,8 +302,43 @@ export function Sidebar({
             })}
           </div>
 
-          {/* Divider between workspace management and docs/help */}
+          {/* Divider between workspace management and admin/docs */}
           <div className="my-3 border-t border-white/[0.06]" />
+
+          {/* Group 2b: Admin (hanya email ADMIN_EMAIL) */}
+          {adminNavigation.length > 0 && (
+            <div className="flex flex-col gap-1">
+              {adminNavigation.map((item) => {
+                const active = isCurrent(item.href);
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all group ${
+                      active
+                        ? "bg-zinc-900/80 text-white font-semibold border border-white/[0.08]"
+                        : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40"
+                    }`}
+                  >
+                    <Icon
+                      className={`w-4 h-4 transition-colors ${
+                        active ? "text-amber-400" : "text-zinc-500 group-hover:text-amber-300"
+                      }`}
+                    />
+                    <span className="inline-flex items-center gap-1.5">
+                      <span>{item.name}</span>
+                      <ShieldCheck className="w-3 h-3 text-amber-500/70" />
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+
+          {adminNavigation.length > 0 && (
+            <div className="my-3 border-t border-white/[0.06]" />
+          )}
 
           {/* Group 3: Documentation */}
           <div className="flex flex-col gap-1">
