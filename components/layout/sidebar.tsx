@@ -209,7 +209,7 @@ export function Sidebar({
   const externalNavigation = [
     {
       name: "Docs",
-      href: "https://docs.kotacloud.com",
+      href: "/docs",
       icon: BookOpen,
     },
   ];

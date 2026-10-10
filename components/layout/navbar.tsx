@@ -26,6 +26,9 @@ export function Navbar() {
               <span>Resources</span>
               <ChevronDown className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
             </div>
+            <Link href="/docs" className="flex items-center gap-1 hover:text-cyan-300 transition-colors">
+              <span>Docs</span>
+            </Link>
             <div className="flex items-center gap-1 hover:text-zinc-100 transition-colors cursor-pointer group">
               <span>Solutions</span>
               <ChevronDown className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
