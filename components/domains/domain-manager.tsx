@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/dialog";
-import { createProjectDomainApi, updateDomainApi, deleteDomainApi, verifyDomainDnsApi } from "@/lib/api/projects";
+import { createProjectDomainApi, updateDomainApi, deleteDomainApi, verifyDomainDnsApi, validateDomainApi, DomainValidation } from "@/lib/api/projects";
 import { listProjectServicesApi } from "@/lib/api/services";
 import { Service } from "@/types/service";
 import { useToast } from "@/lib/toast/toast-context";
@@ -351,6 +351,9 @@ export function DomainManager({
   // Edit Domain state (Vercel-style expanded form)
   const [editingDomainId, setEditingDomainId] = useState<string | null>(null);
   const [editDomainValue, setEditDomainValue] = useState("");
+  // Checker pra-save: validasi live nama domain saat diketik di form edit.
+  const [editValidation, setEditValidation] = useState<DomainValidation | null>(null);
+  const [isValidatingEdit, setIsValidatingEdit] = useState(false);
   const [editIsRedirect, setEditIsRedirect] = useState(false);
   const [editRedirectStatus, setEditRedirectStatus] = useState("307");
   const [editRedirectTarget, setEditRedirectTarget] = useState("");
@@ -490,12 +493,57 @@ export function DomainManager({
     }
   };
 
+  // Reset checker saat form edit dibuka / ditutup / pindah domain.
+  useEffect(() => {
+    if (!editingDomainId) {
+      setEditValidation(null);
+      setIsValidatingEdit(false);
+    }
+  }, [editingDomainId]);
+
+  // Checker live: validasi nama domain (debounce 600ms) saat diketik.
+  // Hasil hard check (format/available) memblokir Save; DNS advisory saja.
+  useEffect(() => {
+    if (!editingDomainId) return;
+    const raw = editDomainValue.trim().toLowerCase();
+    if (!raw || raw === (domains.find((d) => d.id === editingDomainId)?.domain ?? "")) {
+      setEditValidation(null);
+      setIsValidatingEdit(false);
+      return;
+    }
+    setIsValidatingEdit(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await validateDomainApi(raw, editingDomainId);
+        setEditValidation(res);
+      } catch {
+        // Checker gagal (jaringan dsb) — jangan blokir Save karena
+        // validasi server penuh tetap berjalan saat PUT.
+        setEditValidation(null);
+      } finally {
+        setIsValidatingEdit(false);
+      }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [editDomainValue, editingDomainId, domains]);
+
   // Save edit for custom domain (rename, redirect, dan/atau reassign service)
   const handleSaveEdit = async (targetDomain: Domain) => {
     let clean = editDomainValue.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/+$/, "");
     if (!clean) {
       toast.error("Error", { message: "Domain name cannot be empty." });
       return;
+    }
+
+    // Blokir save bila checker menemukan masalah hard (format/duplikat).
+    if (editValidation && !editValidation.valid) {
+      const failed = editValidation.checks.filter((c) => !c.ok && c.check !== "dns");
+      if (failed.length > 0) {
+        toast.error("Perbaiki dulu", {
+          message: failed.map((c) => c.detail || `Check ${c.check} gagal`).join(" "),
+        });
+        return;
+      }
     }
 
     setIsSavingEdit(true);
@@ -1193,6 +1241,46 @@ export function DomainManager({
                       onChange={(e) => setEditDomainValue(e.target.value)}
                       className="w-full bg-black border border-zinc-800 rounded-lg px-3 py-2 text-xs font-mono text-white focus:border-zinc-700 outline-none"
                     />
+                    {/* Checker pra-save: hasil validasi live di bawah input */}
+                    {(isValidatingEdit || editValidation) && (() => {
+                      const hardBlock = editValidation ? editValidation.checks.some((c) => !c.ok && c.check !== "dns") : false;
+                      return (
+                        <div className={`mt-2 rounded-md border px-3 py-2 space-y-1 text-[11px] font-mono ${
+                          isValidatingEdit
+                            ? "border-zinc-800 bg-zinc-900/60"
+                            : hardBlock
+                              ? "border-rose-500/40 bg-rose-950/20"
+                              : "border-emerald-500/40 bg-emerald-950/20"
+                        }`}>
+                          {isValidatingEdit && !editValidation && (
+                            <p className="text-zinc-500 flex items-center gap-1.5">
+                              <RefreshCw className="w-3 h-3 animate-spin" /> Memeriksa domain…
+                            </p>
+                          )}
+                          {editValidation?.checks.map((c) => (
+                            <p key={c.check} className={`flex items-start gap-1.5 ${
+                              c.check === "dns"
+                                ? (c.ok ? "text-emerald-400" : "text-amber-400")
+                                : (c.ok ? "text-emerald-400" : "text-rose-400")
+                            }`}>
+                              {isValidatingEdit ? (
+                                <RefreshCw className="w-3 h-3 mt-0.5 animate-spin text-zinc-500" />
+                              ) : c.ok ? (
+                                <CheckCircle2 className="w-3 h-3 mt-0.5" />
+                              ) : c.check === "dns" ? (
+                                <AlertTriangle className="w-3 h-3 mt-0.5" />
+                              ) : (
+                                <X className="w-3 h-3 mt-0.5" />
+                              )}
+                              <span>
+                                <span className="uppercase tracking-wider mr-1">{c.check}</span>
+                                {c.detail}
+                              </span>
+                            </p>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Reassign: pindahkan domain ke service lain dalam project yang sama */}
@@ -1277,7 +1365,16 @@ export function DomainManager({
                       <button
                         type="button"
                         onClick={() => handleSaveEdit(dom)}
-                        disabled={isSavingEdit || !editDomainValue.trim()}
+                        disabled={
+                          isSavingEdit ||
+                          !editDomainValue.trim() ||
+                          !isValidatingEdit && editValidation !== null && !editValidation.valid
+                        }
+                        title={
+                          editValidation && !editValidation.valid
+                            ? "Perbaiki error domain sebelum menyimpan"
+                            : undefined
+                        }
                         className="px-4 py-1.5 rounded-lg text-xs font-semibold text-black bg-white hover:bg-zinc-200 transition-colors disabled:opacity-50 cursor-pointer"
                       >
                         {isSavingEdit ? "Saving..." : "Save"}

@@ -93,6 +93,34 @@ export async function getDomainApi(domainId: string): Promise<Domain> {
   return apiClient<Domain>(`/domains/${domainId}`);
 }
 
+// Checker pra-save custom domain: format, ketersediaan, dan DNS live.
+// Read-only — tidak membuat/mengubah record.
+export interface DomainValidationCheck {
+  check: "format" | "available" | "dns";
+  ok: boolean;
+  detail?: string;
+}
+
+export interface DomainValidation {
+  domain: string;
+  valid: boolean;
+  checks: DomainValidationCheck[];
+  dns_config?: import("@/types/domain").DNSConfig;
+}
+
+export async function validateDomainApi(
+  domain: string,
+  excludeDomainId?: string
+): Promise<DomainValidation> {
+  return apiClient<DomainValidation>(`/domains/validate`, {
+    method: "POST",
+    body: JSON.stringify({
+      domain,
+      exclude_domain_id: excludeDomainId || undefined,
+    }),
+  });
+}
+
 // Lakukan lookup DNS nyata (CNAME/A) untuk domain dan simpan status verifikasinya.
 export async function verifyDomainDnsApi(domainId: string): Promise<Domain> {
   return apiClient<Domain>(`/domains/${domainId}/dns/verify`, {
