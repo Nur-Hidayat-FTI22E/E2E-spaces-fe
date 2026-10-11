@@ -1,8 +1,15 @@
 import { ApiResponse, ApiError } from "@/types/api";
 import { getStoredToken, clearAuthStorage } from "@/lib/auth/token";
 
+// NEXT_PUBLIC_API_URL harus ter-inline saat build (NEXT_PUBLIC_* dibaca saat
+// compile-time). Bila build berjalan tanpa env tersebut (mis. builder yang
+// tidak meneruskan env service ke tahap npm run build), fallback ke origin
+// yang sama — /api/v1 diproxy ingress di domain utama sehingga same-origin.
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== "undefined"
+    ? `${window.location.origin}/api/v1`
+    : "http://127.0.0.1:8082/api/v1");
 
 export interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;

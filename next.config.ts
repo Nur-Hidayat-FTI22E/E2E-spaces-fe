@@ -1,12 +1,14 @@
 import type { NextConfig } from "next";
 
 // API backend (untuk CSP connect-src). Di dev biasanya http://localhost:8080.
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
+// 'self' selalu disertakan agar fallback same-origin (origin/apiv1 diproxy
+// ingress) tetap diizinkan bila env tidak ter-inline saat build.
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8082/api/v1";
 const apiOrigin = (() => {
   try {
     return new URL(apiUrl).origin;
   } catch {
-    return "http://localhost:8080";
+    return "http://127.0.0.1:8082";
   }
 })();
 
