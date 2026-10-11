@@ -32,6 +32,8 @@ export interface UsageSummary {
   allocated_cpus: number;
   total_net_rx_mb: number;
   total_net_tx_mb: number;
+  egress_month_mb: number; // metering persist bulan berjalan (UTC)
+  billed_period: string; // YYYY-MM (bulan berjalan)
   services_count: number;
   running_count: number;
   services: ServiceUsage[];

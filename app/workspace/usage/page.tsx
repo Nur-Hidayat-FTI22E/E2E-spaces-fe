@@ -75,10 +75,14 @@ export default function UsagePage() {
   const usedVcpu = usage ? usage.used_cpu_percent / 100 : 0; // %host / 100 = vCPU nyata
   const allocCpus = usage?.allocated_cpus ?? 0;
   const cpuPct = allocCpus > 0 ? (usedVcpu / allocCpus) * 100 : 0;
-  const egress = usage ? usage.total_net_tx_mb : 0;
-  const egressQuotaMB = 100 * 1024; // placeholder 100 GB hingga metering bandwidth bulanan
+  // Egress bulan berjalan dari metering persist; fallback ke akumulasi net_io
+  // live bila metering belum terisi (backend lama) atau engine offline.
+  const egress = usage && usage.egress_month_mb > 0 ? usage.egress_month_mb : usage ? usage.total_net_tx_mb : 0;
+  const egressQuotaMB = 100 * 1024; // kuota bulanan platform (placeholder hingga per-plan)
   const egressPct = (egress / egressQuotaMB) * 100;
   const maxSvc = usage?.plan_max_services ?? 0; // -1 = unlimited
+  const allocVsPlanMemPct = usage && usage.plan_max_memory_mb > 0 ? (usage.allocated_memory_mb / usage.plan_max_memory_mb) * 100 : 0;
+  const allocVsPlanCpuPct = usage && usage.plan_max_cpus > 0 ? (usage.allocated_cpus / usage.plan_max_cpus) * 100 : 0;
 
   return (
     <DashboardShell title="Usage" subtitle="Monitor compute, memory, and network usage across your workspace in real time.">
@@ -129,6 +133,15 @@ export default function UsagePage() {
             <CardContent>
               <Bar pct={usedMemPct} danger={usedMemPct > 90} />
               <p className="text-[10px] font-mono text-zinc-600 mt-1">{usedMemPct.toFixed(1)}% dari limit RAM terpasang</p>
+              {/* Bar kuota plan: porsi limit terpasang terhadap kuota plan */}
+              <div className="mt-3">
+                <div className="w-full bg-zinc-800/60 rounded-full h-1 overflow-hidden">
+                  <div className="bg-fuchsia-500/70 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, allocVsPlanMemPct)}%` }} />
+                </div>
+                <p className="text-[10px] font-mono text-fuchsia-400/90 mt-1">
+                  Kuota plan: {fmtMB(usage?.plan_max_memory_mb)} — terpasang {fmtNum(allocVsPlanMemPct)}% (sisa utk service baru: {fmtMB(Math.max(0, (usage?.plan_max_memory_mb ?? 0) - (usage?.allocated_memory_mb ?? 0)))})
+                </p>
+              </div>
             </CardContent>
           </Card>
 
@@ -148,6 +161,14 @@ export default function UsagePage() {
             <CardContent>
               <Bar pct={cpuPct} danger={cpuPct > 90} />
               <p className="text-[10px] font-mono text-zinc-600 mt-1">{cpuPct.toFixed(1)}% dari limit vCPU terpasang</p>
+              <div className="mt-3">
+                <div className="w-full bg-zinc-800/60 rounded-full h-1 overflow-hidden">
+                  <div className="bg-fuchsia-500/70 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, allocVsPlanCpuPct)}%` }} />
+                </div>
+                <p className="text-[10px] font-mono text-fuchsia-400/90 mt-1">
+                  Kuota plan: {fmtNum(usage?.plan_max_cpus ?? 0)} vCPU — terpasang {fmtNum(allocVsPlanCpuPct)}% (sisa utk service baru: {fmtNum(Math.max(0, (usage?.plan_max_cpus ?? 0) - (usage?.allocated_cpus ?? 0)))} vCPU)
+                </p>
+              </div>
             </CardContent>
           </Card>
 
@@ -166,7 +187,9 @@ export default function UsagePage() {
             </CardHeader>
             <CardContent>
               <Bar pct={egressPct} danger={egressPct > 90} />
-              <p className="text-[10px] font-mono text-zinc-600 mt-1">Estimasi kuota bulanan 100 GB</p>
+              <p className="text-[10px] font-mono text-zinc-600 mt-1">
+                Egress bulan {usage?.billed_period ?? "…"}: {fmtMB(usage?.egress_month_mb)} / 100 GB
+              </p>
             </CardContent>
           </Card>
         </div>
