@@ -15,6 +15,10 @@ function fmtMB(v: number | undefined | null): string {
   return `${mb.toFixed(mb < 10 ? 1 : 0)} MB`;
 }
 
+function fmtNum(v: number | undefined | null): string {
+  return (v || 0).toFixed(2).replace(/\.00$/, "");
+}
+
 function Bar({ pct, danger }: { pct: number; danger?: boolean }) {
   const w = Math.min(100, Math.max(0, pct));
   return (
@@ -62,13 +66,19 @@ export default function UsagePage() {
     return () => clearInterval(interval);
   }, [isAuthenticated, load]);
 
-  const usedMemPct = usage && usage.plan_max_memory_mb > 0 ? (usage.used_memory_mb / usage.plan_max_memory_mb) * 100 : 0;
-  const cpuPct = usage ? (usage.used_cpu_percent / 100) * 100 : 0; // % dari 1 core = 100%
+  // Persentase dihitung terhadap LIMIT TERPASANG (jumlah limit service yang
+  // sudah dibuat), bukan kuota teoritis plan — sesuai apa yang benar-benar
+  // diprotes Docker saat container berjalan.
+  const usedMemPct = usage && usage.allocated_memory_mb > 0 ? (usage.used_memory_mb / usage.allocated_memory_mb) * 100 : 0;
+  // used_cpu_percent = akumulasi % host CPU dari docker stats (100% = 1 core).
+  // Limit vCPU terpasang = alkasi semua service; bandingkan langsung.
+  const usedVcpu = usage ? usage.used_cpu_percent / 100 : 0; // %host / 100 = vCPU nyata
+  const allocCpus = usage?.allocated_cpus ?? 0;
+  const cpuPct = allocCpus > 0 ? (usedVcpu / allocCpus) * 100 : 0;
   const egress = usage ? usage.total_net_tx_mb : 0;
   const egressQuotaMB = 100 * 1024; // placeholder 100 GB hingga metering bandwidth bulanan
   const egressPct = (egress / egressQuotaMB) * 100;
   const maxSvc = usage?.plan_max_services ?? 0; // -1 = unlimited
-  const svcPct = maxSvc > 0 && usage ? (usage.services_count / maxSvc) * 100 : 0;
 
   return (
     <DashboardShell title="Usage" subtitle="Monitor compute, memory, and network usage across your workspace in real time.">
@@ -110,15 +120,15 @@ export default function UsagePage() {
                 <HardDrive className="w-4 h-4 text-cyan-400" />
               </div>
               <CardTitle className="text-2xl font-bold text-white mt-1">
-                {fmtMB(usage?.used_memory_mb)} <span className="text-sm text-zinc-500 font-normal">/ {fmtMB(usage?.plan_max_memory_mb)}</span>
+                {fmtMB(usage?.used_memory_mb)} <span className="text-sm text-zinc-500 font-normal">/ {fmtMB(usage?.allocated_memory_mb)} terpasang</span>
               </CardTitle>
               <CardDescription className="text-xs text-zinc-500">
-                Docker stats live — {usage?.running_count ?? 0}/{usage?.services_count ?? 0} service aktif; alokasi kuota {fmtMB(usage?.allocated_memory_mb)}
+                Dipakai vs jumlah limit RAM semua service yang sudah dibuat ({usage?.services_count ?? 0} service × kuota per-service). Kuota plan: {fmtMB(usage?.plan_max_memory_mb)} total.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Bar pct={usedMemPct} danger={usedMemPct > 90} />
-              <p className="text-[10px] font-mono text-zinc-600 mt-1">{usedMemPct.toFixed(1)}% dari kuota plan</p>
+              <p className="text-[10px] font-mono text-zinc-600 mt-1">{usedMemPct.toFixed(1)}% dari limit RAM terpasang</p>
             </CardContent>
           </Card>
 
@@ -129,15 +139,15 @@ export default function UsagePage() {
                 <Cpu className="w-4 h-4 text-cyan-400" />
               </div>
               <CardTitle className="text-2xl font-bold text-white mt-1">
-                {(usage?.used_cpu_percent ?? 0).toFixed(1)}% <span className="text-sm text-zinc-500 font-normal">/ {(usage?.plan_max_cpus ?? 0).toFixed(2)} vCPU</span>
+                {usedVcpu.toFixed(2)} <span className="text-sm text-zinc-500 font-normal">/ {fmtNum(usage?.allocated_cpus ?? 0)} vCPU terpasang</span>
               </CardTitle>
               <CardDescription className="text-xs text-zinc-500">
-                Total CPU semua container berjalan (100% = 1 core penuh)
+                Pemakaian vCPU nyata (dari docker stats {fmtNum(usage?.used_cpu_percent ?? 0)}% host) dibanding jumlah limit vCPU semua service yang sudah dibuat. Kuota plan: {fmtNum(usage?.plan_max_cpus ?? 0)} vCPU total.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Bar pct={cpuPct} danger={cpuPct > 90} />
-              <p className="text-[10px] font-mono text-zinc-600 mt-1">Limit total alokasi {(usage?.allocated_cpus ?? 0).toFixed(2)} vCPU</p>
+              <p className="text-[10px] font-mono text-zinc-600 mt-1">{cpuPct.toFixed(1)}% dari limit vCPU terpasang</p>
             </CardContent>
           </Card>
 
