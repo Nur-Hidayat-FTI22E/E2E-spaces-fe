@@ -129,7 +129,7 @@ export function GithubRepoSelector({
     let clientId = process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID;
     if (!clientId) {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1"}/auth/config`);
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || (typeof window !== "undefined" ? `${window.location.origin}/api/v1` : "http://127.0.0.1:8082/api/v1")}/auth/config`);
         if (res.ok) {
           const json = await res.json();
           clientId = json.data?.github_app_client_id || json.data?.github_client_id;

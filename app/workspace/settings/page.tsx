@@ -98,7 +98,7 @@ export default function SettingsPage() {
     if (user?.avatar_url) {
       if (user.avatar_url.startsWith("http")) return user.avatar_url;
       if (user.avatar_url.startsWith("/uploads")) {
-        const base = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/v1\/?$/, "") || "http://localhost:8080";
+        const base = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/v1\/?$/, "") || (typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1:8082");
         return `${base}${user.avatar_url}`;
       }
       return user.avatar_url;
@@ -199,7 +199,7 @@ export default function SettingsPage() {
           localStorage.setItem(GITHUB_STORAGE_KEY, JSON.stringify(authData));
           setGithubAuth(authData);
           if (token) {
-            fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1"}/auth/github/token`, {
+            fetch(`${process.env.NEXT_PUBLIC_API_URL || (typeof window !== "undefined" ? `${window.location.origin}/api/v1` : "http://127.0.0.1:8082/api/v1")}/auth/github/token`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
@@ -229,7 +229,7 @@ export default function SettingsPage() {
   // Sync token on mount if present
   useEffect(() => {
     if (token && githubAuth?.token) {
-      fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1"}/auth/github/token`, {
+      fetch(`${process.env.NEXT_PUBLIC_API_URL || (typeof window !== "undefined" ? `${window.location.origin}/api/v1` : "http://127.0.0.1:8082/api/v1")}/auth/github/token`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -247,7 +247,7 @@ export default function SettingsPage() {
     let clientId = process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID;
     if (!clientId) {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1"}/auth/config`);
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || (typeof window !== "undefined" ? `${window.location.origin}/api/v1` : "http://127.0.0.1:8082/api/v1")}/auth/config`);
         if (res.ok) {
           const json = await res.json();
           clientId = json.data?.github_app_client_id || json.data?.github_client_id;

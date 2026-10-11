@@ -7,7 +7,10 @@ export interface EngineHealthResponse {
 }
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== "undefined"
+    ? `${window.location.origin}/api/v1`
+    : "http://127.0.0.1:8082/api/v1");
 
 /**
  * URL for real-time SSE stream of engine status

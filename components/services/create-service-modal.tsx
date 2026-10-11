@@ -1024,7 +1024,9 @@ function CreateServiceModalWizard({
     setIsConnectingGithub(true);
     setError(null);
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
+      const backendUrl =
+        process.env.NEXT_PUBLIC_API_URL ||
+        (typeof window !== "undefined" ? `${window.location.origin}/api/v1` : "http://127.0.0.1:8082/api/v1");
       let clientId = process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID;
 
       if (!clientId) {
@@ -1084,7 +1086,9 @@ function CreateServiceModalWizard({
     setIsConnectingGitlab(true);
     setError(null);
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
+      const backendUrl =
+        process.env.NEXT_PUBLIC_API_URL ||
+        (typeof window !== "undefined" ? `${window.location.origin}/api/v1` : "http://127.0.0.1:8082/api/v1");
       const res = await fetch(`${backendUrl}/auth/config`);
       const cfg = await res.json();
       const gitlabClientId = cfg?.data?.gitlab_client_id;
